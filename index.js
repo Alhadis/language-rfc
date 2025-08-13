@@ -8,9 +8,8 @@ module.exports = {
 	 * @api private
 	 */
 	activate(){
-		this.disposables = new (require("atom").CompositeDisposable)(
-			this.observeEditors(this.watchRFCs.bind(this)),
-		);
+		this.disposables = new (require("atom").CompositeDisposable)();
+		this.observeEditors(this.autoDetect.bind(this));
 	},
 
 	/**
@@ -23,29 +22,12 @@ module.exports = {
 	},
 
 	/**
-	 * Invoke a callback for every {@link TextEditor} open in the workspace.
-	 * @param {Function} callback
-	 * @return {Disposable}
-	 * @api private
-	 */
-	observeEditors(callback){
-		if(atom.packages.initialPackagesActivated)
-			return atom.workspace.observeTextEditors(callback);
-		const disposable = atom.packages.onDidActivateInitialPackages(() => {
-			disposable.dispose();
-			this.disposables.delete(disposable);
-			setTimeout(() => atom.textEditors.editors.forEach(callback), 100);
-		});
-		return disposable;
-	},
-
-	/**
 	 * Auto-detect IETF RFC documents when opened.
 	 * @param {TextEditor} editor
 	 * @return {void}
 	 * @api private
 	 */
-	watchRFCs(editor){
+	autoDetect(editor){
 		const name = editor.getFileName();
 		if(!name || atom.textEditors.getGrammarOverride(editor)) return;
 		switch(editor.getGrammar().scopeName){
@@ -53,6 +35,24 @@ module.exports = {
 			case "text.plain.null-grammar":
 				if(/^(?:rfc|bcp|fyi|ien|std)\d+\.txt$/.test(name))
 					atom.textEditors.setGrammarOverride(editor, "text.rfc");
+		}
+	},
+
+	/**
+	 * Invoke a callback for every {@link TextEditor} open in the workspace.
+	 * @param {Function} callback
+	 * @return {void}
+	 * @api private
+	 */
+	observeEditors(callback){
+		this.disposables.add(atom.workspace.observeTextEditors(callback));
+		if(!atom.packages.initialPackagesActivated){
+			const disposable = atom.packages.onDidActivateInitialPackages(() => {
+				disposable.dispose();
+				this.disposables.delete(disposable);
+				setTimeout(() => atom.textEditors.editors.forEach(callback), 100);
+			});
+			this.disposables.add(disposable);
 		}
 	},
 };
