@@ -1,0 +1,470 @@
+# Plain-text Internet-Draft conforming to RFC 2223
+name: "IETF RFC"
+scopeName: "text.rfc"
+fileTypes: [
+	"rfc", "rfc2223.txt"
+	"bcp"
+]
+firstLineMatch: """(?x)
+	# BCP header
+	^\\x{FEFF}?(?-x:\\[Note that this file is a concatenation of more than one RFC\\.\\]$)
+
+	# Emacs modeline
+	-\\*-(?i:[ \\t]*(?=[^:;\\s]+[ \\t]*-\\*-)|(?:.*?[ \\t;]|(?<=-\\*-))[ \\t]*mode[ \\t]*:[ \\t]*)
+		(?i:rfc)
+	(?=[ \\t;]|(?<![-*])-\\*-).*?-\\*-
+
+	|
+
+	# Vim modeline
+	(?:(?:^|[ \\t])(?:vi|Vi(?=m))(?:m[<=>]?[0-9]+|m)?|[ \\t]ex)(?=:(?=[ \\t]*set?[ \\t][^\\r\\n:]+:)|:(?![ \\t]*set?[ \\t]))
+	(?:(?:[ \\t]*:[ \\t]*|[ \\t])\\w*(?:[ \\t]*=(?:[^\\\\\\s]|\\\\.)*)?)*[ \\t:]
+	(?:filetype|ft|syntax)[ \\t]*=
+		(?i:rfc)
+	(?=$|\\s|:)
+"""
+injections:
+	"L:text.rfc source.embedded.c - comment":
+		patterns: [
+			# Ameliorate damage caused by C grammar's use of `$base`
+			{match: "{", name: "punctuation.section.block.begin.bracket.curly.c"}
+			{match: "}", name: "punctuation.section.block.end.bracket.curly.c"}
+			{include: "#header"}
+			{include: "#footer"}
+		]
+	"L:(text.rfc & (text.embedded.roff | source.embedded.perl)) - comment":
+		patterns: [
+			name: "keyword.control.page-break.rfc"
+			match: "^\\f$"
+			captures:
+				0: name: "punctuation.whitespace.isolated.unpadded.form-feed"
+
+			{include: "#header"}
+			{include: "#footer"}
+		]
+
+patterns: [{
+	# Initial page
+	name:  "meta.page.front-matter.rfc"
+	begin: "\\A\\x{FEFF}?(?!\\f)"
+	end:   "(?=^\\f$)"
+	patterns: [{
+		# Skip leading blank lines (and possible BFC header on first line)
+		begin: "\\G(?:((\\[)Note that this file is a concatenation of more than one RFC\\.(\\])$)|(?=\\s*$))"
+		end:   "(?!\\G)(?=\\s*\\S)"
+		beginCaptures:
+			1: name: "comment.line.file-header.rfc"
+			2: name: "punctuation.definition.comment.begin.rfc"
+			3: name: "punctuation.definition.comment.end.rfc"
+	},{
+		# Remainder of front-matter
+		begin: "(?=\\S)"
+		end:   "(?=^\\f$)"
+		patterns: [{
+			# Header-field block, terminated by an empty line
+			begin: "\\G(?=^(?:\\S| (?=\\S))++ {4,}\\S)"
+			end:   "(?=^\\s*$)"
+			patterns: [include: "#metadata"]
+		},{
+			# Everything after the first blank line
+			begin: "(?=^\\s*$)"
+			end:   "(?!\\G)(?=^\\f$)"
+			patterns: [
+				# Centred document title after header-fields
+				begin: "\\G"
+				end:   "^\\s{3,}((?:\\S| (?=\\S))++)|^(?=\\f$|\\S)"
+				endCaptures:
+					1: name: "markup.heading.title.rfc"
+
+				{include: "#toc"}
+				{include: "#footer"}
+				{include: "#section"}
+				{include: "#refs"}
+				{include: "#requirement"}
+			]
+		}]
+	}]
+},{
+	# Successive pages
+	contentName: "meta.page.rfc"
+	begin: "(?<!\\A)^(\\f)$"
+	end:   "(?!\\G)(?=^\\f$)"
+	applyEndPatternLast: yes
+	beginCaptures:
+		0: name: "keyword.control.page-break.rfc"
+		1: name: "punctuation.whitespace.isolated.unpadded.form-feed"
+	patterns: [
+		# Running page-header
+		begin: "(?<=\\f)\\G"
+		end:   "(?<!\\f)^([^\\r\\n]*)$"
+		endCaptures:
+			1: patterns: [include: "#header"]
+
+		{include: "#adhoc"}
+		{include: "#main"}
+	]
+}]
+
+
+repository:
+	main:
+		patterns: [
+			{include: "#requirement"}
+			{include: "#header"}
+			{include: "#footer"}
+			{include: "#section"}
+			{include: "#refs"}
+		]
+
+
+	# Ad-hoc enhancements for specific RFCs
+	adhoc:
+		patterns: [
+			{include: "#adhocNroff"}
+			{include: "#adhocTable"}
+		]
+
+
+	# RFC 5000 tables
+	adhocTable:
+		name:  "meta.table.rfc"
+		begin: "^(?=.{72}$)^(Mnemonic) {3,}(Title) {3,}((?: (?:BCP|RFC|STD)#){1,2})$"
+		end:   "(?!\\G)(?=^(?:\\d\\.)+ {2,}\\S)"
+		beginCaptures:
+			1: name: "entity.name.column.mnemonic.rfc"
+			2: name: "entity.name.column.title.rfc"
+			3: patterns: [{
+				name: "entity.name.column.${1:/downcase}-number.rfc"
+				match: "([A-Z]{3})#"
+			}]
+		patterns: [{
+			# Divider line
+			name: "keyword.operator.separator.table.rfc"
+			match: "^-{72}$"
+			captures:
+				0: name: "punctuation.definition.table.divider.rfc"
+		},{
+			# Table row, with the second column potentially folded across multiple lines
+			name:  "meta.table-row.rfc"
+			begin: "^(\\S+) +(\\S.+?) +((?: +(?:\\d+|x+)\\*?){0,2}+)$"
+			end:   "^(?=\\S|\\f$)"
+			contentName: "string.unquoted.table-cell.rfc"
+			beginCaptures:
+				1: patterns: [{
+					name: "punctuation.definition.empty-cell.table.rfc"
+					match: "^-+$"
+					captures:
+						0: name: "sublimelinter.gutter-mark"
+				},{
+					name: "entity.name.tag.mnemonic.rfc"
+					match: "^\\S+$"
+				}]
+				2: name: "string.unquoted.table-cell.rfc", patterns: [include: "#refImplicit"]
+				3: patterns: [
+					{match: "\\d+", name: "constant.numeric.rfc-number.rfc"}
+					{match: "\\*",  name: "keyword.operator.modified.rfc"}
+					{match: "\\bx+\\b", name: "constant.language.null-value.table.rfc"}
+				]
+			patterns: [include: "#refImplicit"]
+		}, {include: "#header"}, {include: "#footer"}]
+
+
+	# Appendices in RFC 1543 and RFC 2223
+	adhocNroff:
+		name:  "meta.nroff-macros.rfc"
+		begin: '^(?=\\d+\\. {1,2}Appendix - RFC "nroff macros"$)'
+		end:   "(?!\\G)^(?=\\d+\\. {1,2}\\S)"
+		patterns: [{
+			match: "\\G(.+)"
+			captures:
+				1: patterns: [include: "#sectionNumbered"]
+		},{
+			# K&R C source (older)
+			begin: "^The pg program is:$"
+			end:   "^ +(~{3})End of pg program(~{3})"
+			endCaptures:
+				0: name: "comment.line.example-title.rfc"
+				1: name: "punctuation.definition.comment.begin.rfc"
+				2: name: "punctuation.definition.comment.End.rfc"
+			patterns: [{
+				begin: "^ *(~{3})Beginning of pg program(~{3})$"
+				end:   "(?!\\G)"
+				beginCaptures:
+					0: name: "comment.line.example-title.rfc"
+					1: name: "punctuation.definition.comment.begin.rfc"
+					2: name: "punctuation.definition.comment.End.rfc"
+				patterns: [{
+					name: "source.embedded.c"
+					begin: "\\G"
+					end: "(?=^ *~{3}End of pg program~{3})"
+					patterns: [include: "source.c"]
+				}]
+			}]
+		},{
+			# Perl source (newer)
+			begin: "^(#)(~{70,})$"
+			end:   "^(#)\\2"
+			beginCaptures:
+				0: name: "comment.line.number-sign.code-fence.begin.rfc"
+				1: name: "punctuation.definition.comment.rfc"
+			endCaptures:
+				0: name: "comment.line.number-sign.code-fence.end.rfc"
+				1: name: "punctuation.definition.comment.rfc"
+			contentName: "source.embedded.perl"
+			patterns: [include: "source.perl"]
+		},{
+			# nroff(1) macros (formerly) used to format RFCs
+			name:  "text.embedded.roff"
+			begin: "^(?=\\.pl 10\\.0i$)"
+			end:   "(?=^\\d+\\. {1,2}Full Copyright Statement)"
+			patterns: [include: "text.roff"]
+		}, {include: "#header"}, {include: "#footer"}]
+
+
+	# Running footer, identified by the trailing “[Page 𝑁]”
+	footer:
+		name:  "meta.footer.rfc"
+		match: "^(\\S(?:\\S| (?=\\S))*+) {2,}(\\S(?:\\S| (?=\\S))*+)? {2,}((\\[)Page +\\d+(\\]))$"
+		captures:
+			1: name: "entity.name.author.rfc"
+			2: name: "entity.name.tag.category.rfc"
+			3: name: "constant.numeric.page-number.rfc"
+			4: name: "punctuation.definition.page-number.begin.rfc"
+			5: name: "punctuation.definition.page-number.end.rfc"
+
+
+	# Running header, immediately following form-feed
+	header:
+		name:  "meta.header.rfc"
+		match: "^(\\S(?:\\S| (?=\\S))*+) {2,}(\\S(?:\\S| (?=\\S))*+) {2,}(\\w+ +\\d+)$"
+		captures:
+			1: name: "variable.document.rfc-number.rfc"
+			2: name: "markup.heading.title.rfc"
+			3: name: "constant.numeric.date.rfc"
+
+
+	# Document information header on first page
+	metadata:
+		patterns: [{
+			# Stuff in left-margin
+			match: "(?:\\G|^)(?:\\S| (?=\\S))++(?=$| {4,})"
+			captures:
+				0: patterns: [include: "#metadataLeft"]
+		},{
+			# Stuff in right-margin
+			match: "(?<= {4})\\S[^\\r\\n]*$"
+			captures:
+				0: patterns: [include: "#metadataRight"]
+		}]
+
+
+	# Stuff matched inside a tokenised key for a colon-delimited “key: value” pair
+	metadataKey:
+		match: "(?:^|\\G)([^:]+)(:)"
+		captures:
+			1: name: "variable.assignment.metadata.rfc"
+			2: name: "keyword.operator.assignment.key-value.colon.rfc"
+
+	# Named metadata fields on left-hand side of first page's header
+	metadataLeft:
+		patterns: [{
+			# Network Working Group
+			name: "variable.document.network-working-group.rfc"
+			match: "^[^:]+$"
+		},{
+			# Number of published RFC document
+			match: "^((?:Request for Comments|BCP|FYI|STD):) +(\\d+)$"
+			captures:
+				1: patterns: [include: "#metadataKey"]
+				2: name: "constant.numeric.rfc-number.rfc"
+		},{
+			# List of RFCs this entry obsoletes/updates
+			begin: "^(?:Obsoletes|Replaces|Supercedes|Updates|Obsoleted-by|Updated-by): +"
+			end:   "$"
+			beginCaptures:
+				0: patterns: [include: "#metadataKey"]
+			patterns: [{
+				name: "markup.underline.link.rfc.$1.hyperlink.rfc"
+				match: "(?i:(?<=[,\\s])RFCs\\s+)?(\\d+)"
+				captures:
+					0: name: "constant.other.reference.link.rfc"
+			},{
+				name: "punctuation.separator.delimiter.comma.rfc"
+				match: ","
+			}]
+		},{
+			# Category of RFC
+			match: "(?i)^(Category:) +(Best Current Practice|Standards Track|Informational|Experimental|BCP|STD)$"
+			captures:
+				1: patterns: [include: "#metadataKey"]
+				2: name: "entity.name.tag.category.rfc"
+		},{
+			# NIC number
+			match: "(?i)^(NIC:) +(\\d+)$"
+			captures:
+				1: patterns: [include: "#metadataKey"]
+				2: name: "constant.numeric.nic-number.rfc"
+		},{
+			# ISSN
+			match: "(?i)^(ISSN:) +([-\\dX]+)$"
+			captures:
+				1: patterns: [include: "#metadataKey"]
+				2: patterns: [{
+					# International Standard Serial Number (ISO 3297)
+					name: "constant.numeric.issn.urn.rfc"
+					match: "\\b[0-9]{4}(-)[0-9]{3}[0-9X]\\b"
+					captures:
+						1: name: "punctuation.definition.issn.dash.rfc"
+				},{
+					name: "constant.numeric.integer.rfc"
+					match: "\\b(?<!-)\\d+(?!-)\\b"
+				}]
+		},{
+			# Anything else
+			begin: "^[^:]+: +"
+			end:   "(?=\\s*$)"
+			captures:
+				0: patterns: [include: "#metadataKey"]
+			contentName: "string.unquoted.metadata.rfc"
+		}]
+
+
+	# Author/organisation names on right-hand side of first page's header
+	metadataRight:
+		patterns: [{
+			# Publication date, expressed as an English month name followed by 4-digit year.
+			name: "meta.document-date.rfc"
+			match: "(?i)^((?!00?\\b)(?:3[0-1]|[0-2]?[0-9]) +)?((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[A-Za-z]*) +(\\d+{4})$"
+			captures:
+				1: name: "constant.numeric.integer.date.day.rfc"
+				2: name: "constant.language.date.month-name.rfc"
+				3: name: "constant.language.date.year.rfc"
+		},{
+			# Anything else is assumed to be an author/organisation name
+			name: "entity.name.author.rfc"
+			match: "^\\S.*"
+		}]
+
+
+	# References to locally-defined and external materials
+	refs:
+		patterns: [
+			{include: "#refExplicit"}
+			{include: "#refImplicit"}
+		]
+
+
+	# Link to explicitly-defined reference: “[RFC2223]”
+	refExplicit:
+		name:  "meta.reference.rfc"
+		match: "((\\[))([-\\w]+(?:, +[-\\w]+)*)((\\]))"
+		captures:
+			1: name: "punctuation.definition.reference.begin.rfc"
+			3: patterns: [
+				{match: "[-\\w]+", name: "constant.other.reference.link.rfc"}
+				{match: ",",       name: "punctuation.separator.delimiter.comma"}
+			]
+			4: name: "punctuation.definition.reference.end.rfc"
+			2: name: "brackethighlighter.square"
+			5: name: "brackethighlighter.square"
+
+
+	# Implicit reference to an IETF standards document
+	refImplicit:
+		name: "markup.underline.link.${1:/downcase}.$2.hyperlink.rfc"
+		match: "(?<!-)\\b(RFC|BCP|FYI|STD) (\\d+)\\b(?!-)",
+		captures:
+			0: name: "constant.other.reference.link.rfc"
+
+
+	# Requirement keywords specified by BCP 14 (RFC 2119)
+	requirement:
+		patterns: [{
+			name: "keyword.other.requirement-level.forbidden.bcp14.rfc"
+			match: "(?<!-)\\b(?:MUST NOT|SHALL NOT)(?!-)\\b"
+		},{
+			name: "keyword.other.requirement-level.discouraged.bcp14.rfc"
+			match: "(?<!-)\\b(?:SHOULD NOT|NOT RECOMMENDED)(?!-)\\b"
+		},{
+			name: "keyword.other.requirement-level.mandatory.bcp14.rfc"
+			match: "(?<!-)\\b(?:MUST|REQUIRED|SHALL)(?!-)\\b"
+		},{
+			name: "keyword.other.requirement-level.encouraged.bcp14.rfc"
+			match: "(?<!-)\\b(?:SHOULD|RECOMMENDED)(?!-)\\b"
+		},{
+			name: "keyword.other.requirement-level.discretionary.bcp14.rfc"
+			match: "(?<!-)\\b(?:MAY|OPTIONAL)(?!-)\\b"
+		}]
+
+
+	# Discrete regions of content, labelled by a heading line
+	section:
+		patterns: [
+			{include: "#sectionNumbered"}
+			{include: "#sectionUnnumbered"}
+		]
+
+
+	# Stuff matched inside a tokenised section number
+	sectionNumber:
+		name: "constant.numeric.section-number.rfc"
+		match: "^.+$"
+		captures:
+			0: patterns: [{
+				name: "punctuation.delimiter.period.section.levels.rfc"
+				match: "\\."
+			}]
+
+	# Numbered section block: “1.2.  Content”
+	sectionNumbered:
+		name:  "meta.section.numbered.rfc"
+		begin: "^(\\d+[A-Za-z]?\\.(?:\\d+[A-Za-z]?\\.)*+(?:(?<=\\.)\\d+[A-Za-z]?)?) {1,2}(?=\\S)"
+		end:   "(?!\\G)(?=^\\f$|(?=^(?!\\1)\\S))"
+		beginCaptures:
+			1: patterns: [include: "#sectionNumber"]
+		patterns: [{
+			# Contents of heading line, possibly soft-wrapped
+			name:  "markup.heading.section.rfc"
+			begin: "\\G(?=\\S)"
+			end:   "(?=^\\s*$|^\\S)"
+			contentName: "entity.name.section.rfc"
+		}, include: "#main"]
+
+
+	# Unnumbered section block: “Introduction”
+	sectionUnnumbered:
+		name:  "meta.section.unnumbered.rfc"
+		begin: "^(?=\\S)"
+		end:   "(?!\\G)(?=^\\s*$)"
+		patterns: [{
+			name:  "markup.heading.section.rfc"
+			begin: "\\G"
+			end:   "(?=^\\s*$)"
+			contentName: "entity.name.section.rfc"
+		}, include: "#main"]
+
+
+	# Table of contents
+	toc:
+		name:  "meta.table-of-contents.rfc"
+		begin: "(?i)^(Table of Contents)$"
+		end:   "(?=^\\S)|(?=^\\f$)"
+		beginCaptures:
+			0: name: "markup.heading.section.rfc"
+			1: name: "entity.name.section.rfc"
+		patterns: [{
+			name:  "meta.index.rfc"
+			begin: "^\\s+((?:\\d+[A-Za-z]*\\.)++(?:\\d+[A-Za-z]*)?) +"
+			end:   "([.\\s]+)?(\\d+)?(?=\\s*$)"
+			beginCaptures:
+				1: patterns: [include: "#sectionNumber"]
+			endCaptures:
+				1: patterns: [{
+					name: "punctuation.definition.leader.rfc"
+					match: "\\."
+					captures:
+						0: name: "sublimelinter.gutter-mark"
+				}]
+				2: name: "constant.numeric.page-number.rfc"
+			contentName: "constant.other.reference.link.topic-name.rfc"
+		}]

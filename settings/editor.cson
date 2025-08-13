@@ -1,0 +1,12 @@
+".text.rfc":
+	core:
+		fileEncoding: "iso88591"
+	editor:
+		preferredLineLength: 72
+		preferredLineEnding: "CRLF"
+		softWrapAtPreferredLineLength: true
+		softWrap: true
+		tabLength: 3
+		tabType: "soft"
+	"wrap-guide":
+		enabled: true

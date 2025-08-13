@@ -1,0 +1,10 @@
+{
+	"name": "language-rfc",
+	"version": "v0.0.0",
+	"description": "Syntax highlighting for IETF RFC Internet-Drafts.",
+	"repository": "https://github.com/Alhadis/language-rfc",
+	"author": "John Gardner <gardnerjohng@gmail.com>",
+	"license": "ISC",
+	"package-deps": ["form-feeds"],
+	"engines": {"atom": "*"}
+}
