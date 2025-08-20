@@ -112,6 +112,7 @@ repository:
 			{include: "#requirement"}
 			{include: "#header"}
 			{include: "#footer"}
+			{include: "#bullet"}
 			{include: "#section"}
 			{include: "#refs"}
 		]
@@ -219,6 +220,14 @@ repository:
 			end:   "(?=^\\d+\\. {1,2}Full Copyright Statement)"
 			patterns: [include: "text.roff"]
 		}, {include: "#header"}, {include: "#footer"}]
+
+
+	# Bulleted list item, approximated by a lowercase "o"
+	bullet:
+		match: "^[ \\t]+((o))[ \\t]"
+		captures:
+			1: name: "markup.list.unnumbered.bullet.rfc"
+			2: name: "punctuation.definition.list.rfc"
 
 
 	# Running footer, identified by the trailing “[Page 𝑁]”
