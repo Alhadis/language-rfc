@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [
+	<!ENTITY git "https://raw.githubusercontent.com/Alhadis/language-rfc/4ee0e4551c599435746bbfe542c338f73f67d47d">
+]>
+<svg version="1.1" width="700" height="430" viewBox="0 0 700 430"
+	xmlns="http://www.w3.org/2000/svg"
+	xmlns:xlink="http://www.w3.org/1999/xlink"
+	xml:lang="en"
+><title>Syntax highlighting preview</title>
+<desc>RFC 5690 highlighted in Atom using the `language-rfc` package.</desc>
+<style type="text/css">
+	svg   { color-scheme: light dark; }
+	image { filter: url(#shadow); }
+	#dark { display: none; }
+	@media (prefers-color-scheme: dark){
+		#dark  { display: initial; }
+		#light { display: none; }
+	}
+</style>
+<filter id="shadow" filterUnits="userSpaceOnUse">
+	<feDropShadow dx="0" dy="0" stdDeviation="5" flood-opacity="0.35"/>
+</filter>
+<image x="15" y="15" width="654" height="399" id="dark"  xlink:href="&git;/preview-dark.png"/>
+<image x="15" y="15" width="643" height="396" id="light" xlink:href="&git;/preview-light.png"/>
+</svg>
