@@ -230,6 +230,12 @@ repository:
 			2: name: "punctuation.definition.list.rfc"
 
 
+	# List delimiter
+	comma:
+		name: "punctuation.separator.delimiter.comma.rfc"
+		match: ","
+
+
 	# Running footer, identified by the trailing “[Page 𝑁]”
 	footer:
 		name:  "meta.footer.rfc"
@@ -297,10 +303,7 @@ repository:
 				match: "(?i:(?<=[,\\s])RFCs\\s+)?(\\d+)"
 				captures:
 					0: name: "constant.other.reference.link.rfc"
-			},{
-				name: "punctuation.separator.delimiter.comma.rfc"
-				match: ","
-			}]
+			}, include: "#comma"]
 		},{
 			# Category of RFC
 			match: "(?i)^(Category:) +(Best Current Practice|Standards Track|Informational|Experimental|BCP|STD)$"
@@ -366,13 +369,13 @@ repository:
 	# Link to explicitly-defined reference: “[RFC2223]”
 	refExplicit:
 		name:  "meta.reference.rfc"
-		match: "((\\[))([-\\w]+(?:, +[-\\w]+)*)((\\]))"
+		match: "((\\[))(?!(?:https?|ftp?|file|gopher)://)((?=\\w)[-./+&:#|()\\w]+(?:, *(?=\\w)[-./+&:#|()\\w]+)*)((\\]))"
 		captures:
 			1: name: "punctuation.definition.reference.begin.rfc"
-			3: patterns: [
-				{match: "[-\\w]+", name: "constant.other.reference.link.rfc"}
-				{match: ",",       name: "punctuation.separator.delimiter.comma"}
-			]
+			3: patterns: [{
+				name: "constant.other.reference.link.rfc"
+				match: "[^,\\s]+"
+			}, include: "#comma"]
 			4: name: "punctuation.definition.reference.end.rfc"
 			2: name: "brackethighlighter.square"
 			5: name: "brackethighlighter.square"
