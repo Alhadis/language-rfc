@@ -1,0 +1,11 @@
+"atom-text-editor[data-grammar='text rfc']":
+	"pageup":   "language-rfc:prev-page"
+	"pagedown": "language-rfc:next-page"
+
+# macOS
+"body.platform-darwin atom-text-editor[data-grammar='text rfc']":
+	"shift-cmd-g": "language-rfc:go-to-page"
+
+# Linux and Windows
+"body:not(.platform-darwin) atom-text-editor[data-grammar='text rfc']":
+	"shift-ctrl-g": "language-rfc:go-to-page"
