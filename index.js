@@ -1,8 +1,8 @@
 "use strict";
 
-const {CompositeDisposable} = require("atom");
+const {CompositeDisposable, Disposable} = require("atom");
 const {existsSync, mkdirSync, readFileSync, statSync, writeFileSync} = require("fs");
-const {basename, join, normalize} = require("path");
+const {basename, dirname, join, normalize, resolve} = require("path");
 const {execSync, spawnSync} = require("child_process");
 const {parse: parseURL} = require("url");
 const {tmpdir} = require("os");
@@ -443,3 +443,46 @@ module.exports = {
 		return user;
 	},
 };
+
+
+// Circuitous hack to fix display of package's preview-images whilst retaining
+// the 72 character line-length limit imposed upon the `README.md` file.
+const atomPath = dirname(require.resolve("atom"));
+const PackageDetailView = require(resolve(atomPath, "../node_modules/settings-view/lib/package-detail-view"));
+const isRFCPkg = x => atom.packages.loadedPackages["language-rfc"] === x.pack;
+const {completeInitialization, renderReadme} = PackageDetailView.prototype;
+Object.assign(PackageDetailView.prototype, {
+	completeInitialization(...args){
+		if(isRFCPkg(this)){
+			const repoURL = "https://raw.githubusercontent.com/Alhadis/language-rfc/18b6cc0bfd787b542d6a8d5af109045f2b183df2/";
+			this.readmePath = join(this.pack.path, "README.md");
+			this.readme = this.pack.metadata.readme = readFileSync(this.readmePath, "utf8").replace(
+				/\s(srcset|src)\s*=\s*("|')\.\.\/18b6cc0\/(preview-(?:light|dark)\.png)\2/gi,
+				` $1=$2${repoURL}$3$2`,
+			);
+		}
+		const result = completeInitialization.apply(this, args);
+		if(isRFCPkg(this)){
+			const title = this.refs.title?.childNodes[0];
+			const index = title.textContent.indexOf(" Rfc");
+			~index && title.replaceData(index, 5, " RFC");
+		}
+		return result;
+	},
+	renderReadme(...args){
+		const result = renderReadme.apply(this, args);
+		if(isRFCPkg(this)){
+			const {element} = this.readmeView;
+			const preview = element.querySelector("source:first-child + img:last-child");
+			if(preview){
+				const {parentElement} = preview;
+				const picture = document.createElement("picture");
+				picture.append(...parentElement.childNodes);
+				parentElement.replaceWith(picture);
+			}
+		}
+		return result;
+	},
+});
+Object.defineProperty(module.exports, "readmeHack", {value: new Disposable(() =>
+	Object.assign(PackageDetailView.prototype, {completeInitialization, renderReadme}))});
