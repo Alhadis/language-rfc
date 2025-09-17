@@ -1,6 +1,6 @@
 "use strict";
 
-const {CompositeDisposable, Disposable} = require("atom");
+const {CompositeDisposable, Disposable, Point, Range} = require("atom");
 const {existsSync, mkdirSync, readFileSync, statSync, writeFileSync} = require("fs");
 const {basename, dirname, join, normalize, resolve} = require("path");
 const {execSync, spawnSync} = require("child_process");
@@ -36,6 +36,15 @@ module.exports = {
 			default: "https://www.rfc-editor.org/rfc/rfc#.txt",
 			order: 3,
 		},
+	},
+	
+	/**
+	 * Read-only access to the [tilde-expanded]{@link expandPath} RFC directory path.
+	 * @property {String} rfcDirectory
+	 * @readonly
+	 */
+	get rfcDirectory(){
+		return rfcDirectory;
 	},
 
 	/**
@@ -164,7 +173,7 @@ module.exports = {
 	 *
 	 * @param {Number} number
 	 * @param {TextEditor} [editor]
-	 * @return {Promise<String>|undefined}
+	 * @return {Promise<String>}
 	 * @private
 	 */
 	goToPage(number = null, editor = null){
@@ -189,6 +198,7 @@ module.exports = {
 			editor.setSelectedBufferRange([zero, zero]);
 			editor.scrollToBufferPosition(zero);
 		}
+		return editor;
 	},
 
 	/**
@@ -269,28 +279,76 @@ module.exports = {
 	handleURI(uri){
 		if(!rfcDirectory) return;
 		let rfc = NaN;
-		const name = basename(uri);
+		let anchor = "";
+		const name = basename(uri).replace(/#.*/, match => (anchor = match.slice(1), ""));
 		if(!(uri = parseURL(uri)).protocol && /^rfc:\d+/.test(name))
 			rfc = parseInt(name.slice(4), 10);
-		else if("rfc:" === uri.protocol)
+		else if("rfc:" === uri.protocol){
+			anchor = uri.hash;
 			rfc = parseInt(uri.hostname || uri.path?.replace(/^\//, ""), 10);
+		}
 		if(!isFinite(rfc)) return;
 		
 		// Already open in workspace
 		const path = join(rfcDirectory, `rfc${rfc}.txt`);
 		const item = atom.workspace.getActivePane().itemForURI(path);
-		if(item) return item;
+		if(item)
+			return this.executeAnchorAction(anchor, item);
 		
 		// RFC already exists locally
 		if(isFile(path))
-			return atom.workspace.openTextFile(path);
+			return atom.workspace.openTextFile(path).then(editor =>
+				this.executeAnchorAction(anchor, editor));
 		
 		// Download RFC file
 		if(!atom.config.get("language-rfc.downloadEnabled")) return;
 		isDir(rfcDirectory) || mkdirSync(rfcDirectory, {recursive: true});
 		return this.downloadFile(atom.config.get("language-rfc.downloadSource").replaceAll("#", rfc), path)
-			.then(() => atom.workspace.openTextFile(path))
-			.catch(e => atom.workspace.addError("Error caught while downloading RFC", {detail: e}));
+			.then(async () => this.executeAnchorAction(anchor, await atom.workspace.openTextFile(path)))
+			.catch(error => atom.workspace.addError("Error caught while downloading RFC", {detail: error}));
+	},
+	
+	/**
+	 * Navigate to a section of an opened RFC file specified by a fragment identifer.
+	 * @param {String} input
+	 * @param {TextEditor} [editor]
+	 * @return {TextEditor}
+	 * @internal
+	 */
+	executeAnchorAction(input, editor = atom.workspace.getActiveTextEditor){
+		input = `${input}`;
+		const section = input.match(/^#?(appendix|section|ref|page)-(?!-)(\S+)$/);
+		if(section){
+			const type = section[1];
+			if("page" === type){
+				const page = Math.max(0, parseInt(section[2], 10));
+				return isFinite(page) ? this.goToPage(page, editor) : editor;
+			}
+			const name = RegExp.escape(section[2]);
+			const regex = new RegExp({
+				appendix: `^ *Appendix +${name}`,
+				section:  `^ *${name}\\.? `,
+				ref:      `^ +\\[${name}\\] `,
+			}[type] || "(?:)", "m");
+			const match = editor.buffer.findSync(regex);
+			if(match){
+				const {start: offset} = Range.fromObject(match);
+				editor.setSelectedBufferRange(new Range(offset, offset));
+				editor.scrollToBufferPosition(offset, {center: true});
+			}
+			return editor;
+		}
+		
+		// Line/column range in GitHub's blob-link compatible format (e.g., "#L1-L5")
+		const offsets = [];
+		for(const [, row, column = row] of input.matchAll(/(?:^#?|(?<=-))L(\d+)(?:C(\d+)\b)?/g))
+			if(offsets.push(new Point(
+				Math.max(0, parseInt(row,    10) - 1),
+				Math.max(0, parseInt(column, 10) - 1),
+			)) > 1) break;
+		const [start, end = start] = offsets;
+		start && editor.setSelectedBufferRange(new Range(start, end));
+		return editor;
 	},
 	
 	/**
@@ -443,6 +501,38 @@ module.exports = {
 		return user;
 	},
 };
+
+/** Polyfill for {@linkcode RegExp.escape|https://tc39.es/ecma262/multipage/text-processing.html#sec-regexp.escape}. */
+if("function" !== typeof RegExp.escape)
+	Object.defineProperty(RegExp, "escape", {
+		configurable: true,
+		writable: true,
+		value: function escape(string){
+			if("string" !== typeof string)
+				throw new TypeError("Input is not a string");
+			const esc = "\\";
+			const shortEsc = {0x09: "t", 0x0A: "n", 0x0B: "v", 0x0C: "f", 0x0D: "r"};
+			const escapeCode = char => {
+				let code = char.codePointAt(0);
+				if(code in shortEsc) return esc + shortEsc[code];
+				if(code <= 0xFF)     return esc + "x" + code.toString(16).padStart(2, "0");
+				if(code <= 0xFFFF)   return esc + "u" + code.toString(16).padStart(4, "0");
+				if(code <= 0x10FFFF) return (
+					esc + "u" + (Math.floor((code - 0x10000) / 0x400) + 0xD800).padStart(4, "0") +
+					esc + "u" + (((code - 0x10000) % 0x400) + 0xDC00).padStart(4, "0")
+				);
+				code = code.toString(16).toUpperCase();
+				throw new RangeError(`Illegal code point: U+${code}`);
+			};
+			return string
+				.replace(/[[\]$\\.*+?(){}|^]/g,                  esc + "$&")
+				.replace(/^[0-9a-zA-Z]/,                         escapeCode)
+				.replace(/[-,=<>#&!%:;@~'` "\f\n\r\t\v]/g,       escapeCode)
+				.replace(/[\x85\p{Zl}\p{Zp}]/gu,                 escapeCode)
+				.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g,  escapeCode)
+				.replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, escapeCode);
+		},
+	});
 
 
 // Circuitous hack to fix display of package's preview-images whilst retaining
