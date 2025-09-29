@@ -366,19 +366,37 @@ repository:
 		]
 
 
-	# Link to explicitly-defined reference: “[RFC2223]”
+	# Link to explicitly-defined reference
 	refExplicit:
-		name:  "meta.reference.rfc"
-		match: "((\\[))(?!(?:https?|ftp?|file|gopher)://)((?=\\w)[-./+&:#|()\\w]+(?:, *(?=\\w)[-./+&:#|()\\w]+)*)((\\]))"
-		captures:
-			1: name: "punctuation.definition.reference.begin.rfc"
-			3: patterns: [{
-				name: "constant.other.reference.link.rfc"
-				match: "[^,\\s]+"
-			}, include: "#comma"]
-			4: name: "punctuation.definition.reference.end.rfc"
-			2: name: "brackethighlighter.square"
-			5: name: "brackethighlighter.square"
+		patterns: [{
+			# Conventional square-bracket notation: “[RFC2223]”
+			name:  "meta.reference.square-brackets.rfc"
+			match: "((\\[))(?!(?:https?|ftp?|file|gopher)://)((?=\\w)[-./+&:#|()\\w]+(?:, *(?=\\w)[-./+&:#|()\\w]+)*)((\\]))"
+			captures:
+				1: name: "punctuation.definition.reference.begin.rfc"
+				3: patterns: [include: "#refExplicitInnards"]
+				4: name: "punctuation.definition.reference.end.rfc"
+				2: name: "brackethighlighter.square"
+				5: name: "brackethighlighter.square"
+		},{
+			# Non-standard parenthetical notation: “(RFC959)”
+			name:  "meta.reference.round-brackets.rfc"
+			match: "((\\())((?:RFC\\s*\\d+)+)((\\)))"
+			captures:
+				1: name: "punctuation.definition.reference.begin.rfc"
+				3: patterns: [include: "#refExplicitInnards"]
+				4: name: "punctuation.definition.reference.end.rfc"
+				2: name: "brackethighlighter.round"
+				5: name: "brackethighlighter.round"
+		}]
+
+
+	# Underlined link-tokens matched inside “#refExplicit”
+	refExplicitInnards:
+		patterns: [{
+			name: "constant.other.reference.link.rfc"
+			match: "[^,\\s]+"
+		}, include: "#comma"]
 
 
 	# Implicit reference to an IETF standards document
