@@ -249,6 +249,7 @@ module.exports = {
 			return atom.workspace.open("rfc:" + event);
 		
 		return this.prompt("Enter an RFC number").then(value => {
+			value = value.replace(/^(?:RFC|BCP|FYI|STD)[:\s]*/i, "");
 			value = parseInt(value, 10);
 			if(value > 0)
 				return atom.workspace.open("rfc:" + value);
